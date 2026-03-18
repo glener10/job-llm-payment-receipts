@@ -14,15 +14,26 @@ def count_coordinate_templates(coordinates_dir="src/config/coordinates"):
     for bank_name in os.listdir(coordinates_dir):
         bank_path = os.path.join(coordinates_dir, bank_name)
         if os.path.isdir(bank_path):
-            file_count = len(
-                [
-                    f
-                    for f in os.listdir(bank_path)
-                    if os.path.isfile(os.path.join(bank_path, f))
-                ]
-            )
+            files_in_bank = [
+                f
+                for f in os.listdir(bank_path)
+                if os.path.isfile(os.path.join(bank_path, f))
+            ]
+            file_count = len(files_in_bank)
             template_count = file_count // 2
-            bank_data[bank_name] = {"files": file_count, "templates": template_count}
+
+            # Count extensions (excluding .json)
+            extension_count_by_bank = defaultdict(int)
+            for file in files_in_bank:
+                _, ext = os.path.splitext(file)
+                if ext and ext.lower() != ".json":
+                    extension_count_by_bank[ext.lower()] += 1
+
+            bank_data[bank_name] = {
+                "files": file_count,
+                "templates": template_count,
+                "extensions": dict(extension_count_by_bank),
+            }
             total_files += file_count
 
     total_templates = total_files // 2
@@ -36,6 +47,12 @@ def count_coordinate_templates(coordinates_dir="src/config/coordinates"):
         print(
             f"🏦 {bank:<20} : {data['templates']:>3} template(s) ({data['files']} files)"
         )
+
+        if data["extensions"]:
+            for ext in sorted(data["extensions"].keys()):
+                count = data["extensions"][ext]
+                percentage = (count / data["files"] * 100) if data["files"] > 0 else 0
+                print(f"   📄 {ext:<14} : {count:>3} file(s) ({percentage:>5.1f}%)")
 
     print(f"{'-' * 60}")
     print(f"📊 Total: {total_templates} template(s)")
