@@ -1,19 +1,11 @@
 # **llm-liaa-payment-receipt**
 
-<p align="center"> 🚀 This script is designed to count, organize and masking sensitive data from payment receipts of Pix</p>
-
-⭐ Our Goal is 500 payment-receipts from 20 different institutions
+<p align="center"> 🚀 This script is designed to masking sensitive data from payment receipts of Pix</p>
+<p align="center">It includes auxiliary scripts to organize, count, and create the coordinates of sensitive data locations in the templates</p>
 
 The workflow for receiving a new payment receipt is described in the image below.
 
 ![new_payment_receipt_flow.png](./docs/new_payment_receipt_flow.png)
-
-Next Steps:
-
--   Generate payment receipt
-    -   ✖️ Testing using nano banana (gemini-2.5-flash-image): generate a new full image
-    -   🛠️ Testing using ML: Use tensorflow
-    -   Testing using Semantic anchors: Use OpenCV or anothers libs
 
 <h3>🏁 Table of Contents</h3>
 
@@ -24,8 +16,6 @@ Next Steps:
 <!--ts-->
 
 💻 [Dependencies and Environment](#dependenciesandenvironment)
-
-🔑 [Dataset](#dataset)
 
 ☕ [Using](#using)
 
@@ -39,91 +29,45 @@ Next Steps:
 
 ## 💻 **Dependencies and Environment**
 
-You will need [install Ollama](https://ollama.com/):
+### Prerequisites
 
-Models `qwen2.5vl:7b` in `sensitive_data_masker.py` and `qwen2.5vl:7b` in ``guardrails.py`
+- Python 3.8+
+- Virtual environment tool ([venv](https://docs.python.org/pt-br/3.13/library/venv.html) recommended)
+- Gemini API Key (for image template matching and guardrails execution)
 
-```
-# sensitive_data_masker.py
-$ ollama run qwen2.5vl:7b
+### Setup
 
-#guardrails.py
-$ ollama run qwen2.5vl:7b
-```
+#### 1. Create and Activate Virtual Environment
 
-This model yielded good results, but feel free to test others.
-
-Or you can use **Gemini** instead deepseek models, you **NEED to use the PAID Google Gemini API to not share sensitive informations**. If you choose to use Gemini, [configure a valid Gemini API Key](https://aistudio.google.com/apikey) and ensure you have a `.env` file with the environment variable **GEMINI_API_KEY**.
-
-To setup environment use (you will need [venv](https://docs.python.org/pt-br/3.13/library/venv.html)):
-
-```
+```bash
 $ make setup
 ```
 
-And enable the virtual ambient using:
+This creates a `.venv` directory with all dependencies installed.
 
-```
+Activate it:
+
+```bash
 $ source .venv/bin/activate
 ```
 
-You can clean the environment using
+#### 2. Configure Gemini API (Required for Template Matching)
+
+**⚠️ Important:** Use the **PAID Google Gemini API** to ensure sensitive payment data is not logged or retained.
+
+1. Get your API key: https://aistudio.google.com/apikey
+2. Create a `.env` file in the project root:
 
 ```
+GEMINI_API_KEY=your_api_key_here
+```
+
+The script will automatically load this variable.
+
+#### 3. Clean Up
+
+```bash
 $ make clean
-```
-
-<div id="dataset"></div>
-
-## 🔑 **Dataset**
-
-Attention! Take one backup before execute any test
-
-### Specified for author
-
-You save dataset in google drive and link folder in repository to then
-
-First of all install Google Drive desktop
-
-Create a folder in Linux to mount the corresponding Google Drive folder in Windows (created only once, change "h" if needed).
-
-```cmd
-$ sudo mkdir -p /mnt/h
-
-$ sudo mkdir -p /mnt/g
-```
-
-Mount in WSL2 using (change "h" if needed):
-
-```cmd
-sudo mount -t drvfs H: /mnt/h
-
-sudo mount -t drvfs G: /mnt/g
-```
-
-And link dataset in Google Drive to a folder in WSL2, in root folder use:
-
-```cmd
-ln -s "/mnt/h/Meu Drive/dataset/" .
-
-ln -s "/mnt/g/Meu Drive/PPGES/disciplinas/LIAA/dataset_just_banks_and_random_name/" .
-```
-
-### Others users
-
-You will need a dataset folder in root folder like _/dataset/dataset/_. You can get the content in [put link of the dataset in Kaggle]()
-
-The format is:
-
-```
-dataset/
-└── Glener/
-    └── nu/
-        └── receipt_1.png
-└── João/
-    └── xp/
-        └── receipt_1.png
-        └── receipt_2.pdf
 ```
 
 <div id="using"></div>
@@ -134,46 +78,112 @@ First, check the [dependencies](#dependenciesandenvironment) process
 
 To check utility scripts, verify [scripts/README.md](/scripts/README.md)
 
-All use cases can be called individually and have debugging configured.
+### 📊 How the Project Works
 
-This script masks sensitive data in payment receipts (or adapt it to your scenario.) using coordinate templates.
+Key Components
 
-To exec for one specified file:
+| Component                       | Purpose                                   |
+| ------------------------------- | ----------------------------------------- |
+| `config/coordinates/`           | Stores coordinate templates for each bank |
+| `scripts/create_coordinates.py` | Interactive tool to create new templates  |
+| `main.py`                       | Main execution script for anonimization   |
+| `src/usecases/masking.py`       | Applies black masks to coordinates        |
+| `src/usecases/matcher.py`       | Matches receipt to best template          |
+| `src/usecases/guardrails.py`    | Validates masking quality                 |
 
+This project operates in a **two-stage workflow**:
+
+#### **Stage 1: Template Creation** 🗂️
+
+Before you can mask, you need to create **coordinate templates**. These templates map the exact locations of sensitive data on the inputs (images or PDFs).
+
+**To create templates:**
+
+```bash
+$ python scripts/create_coordinates.py -i 'path/to/receipt.png' -o 'src/config/coordinates/bankname/coordinates_output_1.json'
 ```
+
+This opens an interactive window where you:
+
+- **Draw rectangles** around sensitive data areas with your mouse
+- **Press `u`** to undo the last rectangle
+- **Press `r`** to reset all rectangles
+- **Press `q`** to finish and save
+
+The coordinates are saved in JSON format with `{x, y, width, height}` for each sensitive area.
+
+#### **Stage 2: Anonimization** 🚀
+
+Once you have templates, you can anonimize receipts by running the main script. It will:
+
+1. Load the coordinate templates for the detected bank
+2. Match the receipt to the most similar template
+3. Apply black masks to all sensitive data areas
+4. Run guardrails to verify no sensitive data remains
+
+**For a single file** (specify the bank name):
+
+```bash
 $ python main.py -i 'example.jpeg' -n '99pay'
 ```
 
-To exec to all files in one directory:
+**For a directory** (automatically detects bank from folder structure):
 
-```
+```bash
 $ python main.py -i 'dataset'
 ```
 
-Ensure the folder structure is:
+Ensure the folder structure follows this pattern:
 
 ```
 dataset/
-└── Glener/
-    └── nu/
-        └── receipt_1.png
-└── João/
-    └── xp/
-        └── receipt_1.png
-        └── receipt_2.pdf
-```
-
-Example output structure (same as input):
-
-```
 ├── Glener/
 │   └── nu/
-│       └── receipt_1.png (masked)
-├── João/
-    └── xp/
-        └── receipt_1.png (masked)
-        └── receipt_2.pdf (masked)
+│       └── receipt_1.png
+└── João/
+    ├── xp/
+    │   └── receipt_1.png
+    │   └── receipt_2.pdf
+    └── bb/
+        └── receipt_1.jpg
 ```
+
+**Output structure** (same as input):
+
+```
+output/
+├── Glener/
+│   └── nu/
+│       └── receipt_1.png (✓ masked)
+└── João/
+    ├── xp/
+    │   └── receipt_1.png (✓ masked)
+    │   └── receipt_2.pdf (✓ masked)
+    └── bb/
+        └── receipt_1.jpg (✓ masked)
+```
+
+### 📁 Available Bank Templates
+
+Templates are stored in `src/config/coordinates/` organized by bank:
+
+- `99pay/`
+- `banrisul/`
+- `bb/`
+- `caixa/`
+- `inter/`
+- `itau/`
+- `mercadopago/`
+- `next/`
+- `nu/`
+- `picpay/`
+- `santander/`
+- `sicredi/`
+- `xp/`
+
+**Note:** If processing a file from a bank without templates, it will be skipped automatically.
+
+**Important!** Note that the coordinate structure is specific to the anonymization of Pix payment receipts by payment institution. Feel free to edit the organization and consumption of the coordinates for your specific problem.
 
 <div id="author"></div>
 
